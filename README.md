@@ -42,10 +42,7 @@ Las versiones modernas de Docker ya incluyen Docker Compose de forma nativa. No 
 Crea una carpeta vacía en tu equipo (por ejemplo `revision-proyecto`) y dentro de ella crea un archivo llamado exactamente **`docker-compose.yml`** con el siguiente contenido:
 
 ```yaml
-version: '3.8'
 services:
-
-  # --- BASE DE DATOS MYSQL ---
   db-mysql:
     image: mysql:8.0
     container_name: mysql-container
@@ -63,9 +60,9 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- BACKEND (Spring Boot) desde Docker Hub ---
   api-app:
-    image: maicoldev/gestion-app-backend:latest
+    # AQUÍ ESTÁ LA CORRECCIÓN DEL BACKEND
+    image: vera1091/gestion-app-api-app:latest
     container_name: springboot-container
     ports:
       - "8080:8080"
@@ -77,9 +74,9 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
 
-  # --- FRONTEND (Angular) desde Docker Hub ---
   angular-frontend:
-    image: maicoldev/gestion-app-frontend:latest
+    # AQUÍ ESTÁ LA CORRECCIÓN DEL FRONTEND
+    image: vera1091/gestion-app-angular-frontend:latest
     container_name: angular-container
     ports:
       - "4200:4200"
