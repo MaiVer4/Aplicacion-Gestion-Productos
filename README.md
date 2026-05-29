@@ -1,46 +1,51 @@
-# 🚀 Gestión de Negocio — App Unificada
+# 🚀 Gestión de Negocio — App Full-Stack
 
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.x-6DB33F?logo=springboot&logoColor=white)
 ![Angular](https://img.shields.io/badge/Angular-17+-DD0031?logo=angular&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)
 
-Aplicación Full-Stack para la **gestión de productos**, construida con Spring Boot en el backend y Angular (v17+) en el frontend. Gracias a un *multi-stage build* de Docker, ambas aplicaciones se empaquetan en una **única imagen ligera de producción**, lista para correr con un solo comando.
+Aplicación Full-Stack para la **gestión de productos**, construida con Spring Boot en el backend y Angular (v17+) en el frontend. Ambos servicios, junto con la base de datos MySQL, están publicados como imágenes en Docker Hub y orquestados con Docker Compose, por lo que **cualquier persona puede levantar el sistema completo con un solo comando**, sin instalar Java, Node.js, Angular CLI ni MySQL.
 
 ---
 
 ## 📐 Arquitectura de Despliegue
 
-La aplicación corre mediante dos contenedores que se comunican dentro de una red virtual privada de Docker:
+Tres contenedores se comunican dentro de una red virtual privada de Docker:
 
-| Contenedor | Tecnología | Descripción |
-|---|---|---|
-| `mysql-container` | MySQL 8.0 | Base de datos que persiste los datos del negocio (`negociodb`) |
-| `gestion-unificada-container` | Alpine JRE | Sirve la API de Spring Boot **y** los archivos estáticos de Angular por el puerto `8080` |
+| Contenedor | Imagen | Puerto | Descripción |
+|---|---|---|---|
+| `mysql-container` | `mysql:8.0` | `3306` | Base de datos. Persiste los datos en un volumen Docker (`mysql_data`) |
+| `springboot-container` | `maicoldev/gestion-app-backend:latest` | `8080` | API REST de Spring Boot |
+| `angular-container` | `maicoldev/gestion-app-frontend:latest` | `4200` | Interfaz de usuario en Angular |
 
-> **¿Por qué un monolito?** Al servir el frontend desde el mismo origen que el backend (`http://localhost:8080`), se eliminan por completo los errores de CORS sin configuración adicional.
-
----
-
-## ✅ Requisitos Previos
-
-Solo necesitas tener instalado:
-
-- [Docker](https://docs.docker.com/get-docker/) (incluye Docker Compose en versiones modernas)
-- [Docker Compose](https://docs.docker.com/compose/install/) (si usas una versión antigua de Docker)
-
-> No se requiere Java, Node.js ni ninguna otra dependencia de desarrollo.
+> El `healthcheck` del contenedor MySQL garantiza que Spring Boot solo arranque cuando la base de datos está completamente lista para recibir conexiones, evitando errores de inicio.
 
 ---
 
-## ⚡ Guía de Inicio Rápido
+## ✅ Requisito Previo
 
-### Paso 1 — Crear el archivo `docker-compose.yml`
+Solo se necesita **una herramienta** instalada en el equipo:
 
-Crea una carpeta vacía en tu equipo, genera dentro un archivo llamado `docker-compose.yml` y pega el siguiente contenido:
+**[Docker Desktop](https://docs.docker.com/get-docker/)** (Windows / Mac) o **Docker Engine** (Linux).
+
+Las versiones modernas de Docker ya incluyen Docker Compose de forma nativa. No se requiere Java, Node.js, Angular CLI, MySQL ni ninguna otra dependencia.
+
+> **¿Versión antigua de Docker?** Si el comando `docker compose` no funciona, prueba con `docker-compose` (con guion).
+
+---
+
+## ⚡ Guía de Instalación y Ejecución
+
+### Paso 1 — Crear la carpeta y el archivo de configuración
+
+Crea una carpeta vacía en tu equipo (por ejemplo `revision-proyecto`) y dentro de ella crea un archivo llamado exactamente **`docker-compose.yml`** con el siguiente contenido:
 
 ```yaml
+version: '3.8'
 services:
+
+  # --- BASE DE DATOS MYSQL ---
   db-mysql:
     image: mysql:8.0
     container_name: mysql-container
@@ -50,15 +55,18 @@ services:
       MYSQL_ROOT_PASSWORD: root
     ports:
       - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  monolito-app:
-    image: vera1091/gestion-app-unificada:v1
-    container_name: gestion-unificada-container
+  # --- BACKEND (Spring Boot) desde Docker Hub ---
+  api-app:
+    image: maicoldev/gestion-app-backend:latest
+    container_name: springboot-container
     ports:
       - "8080:8080"
     depends_on:
@@ -68,105 +76,138 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://db-mysql:3306/negociodb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
+
+  # --- FRONTEND (Angular) desde Docker Hub ---
+  angular-frontend:
+    image: maicoldev/gestion-app-frontend:latest
+    container_name: angular-container
+    ports:
+      - "4200:4200"
+    depends_on:
+      - api-app
+
+volumes:
+  mysql_data:
 ```
 
 ---
 
-### Paso 2 — Lanzar la aplicación
+### Paso 2 — Abrir la terminal y navegar a la carpeta
 
-Abre la terminal (PowerShell / CMD en Windows, Terminal en Linux/Mac), navega a la carpeta donde guardaste el archivo y ejecuta:
+Abre la terminal de tu sistema operativo:
+- **Windows:** PowerShell o CMD
+- **Mac / Linux:** Terminal
+
+Navega hasta la carpeta donde guardaste el archivo:
 
 ```bash
-cd /ruta/de/tu/carpeta/gestion-app-prod
+cd /ruta/de/la/carpeta/revision-proyecto
+```
+
+---
+
+### Paso 3 — Lanzar el ecosistema completo
+
+Ejecuta el siguiente comando:
+
+```bash
 docker compose up
 ```
 
-> 💡 **Primera ejecución:** Docker descargará las imágenes desde Docker Hub (~400 MB). Dependiendo de tu conexión esto puede tardar un par de minutos. Las ejecuciones siguientes arrancan en menos de 5 segundos.
+Docker hará todo el trabajo de forma automática en este orden:
+
+1. Descargará las imágenes del backend, frontend y MySQL desde Docker Hub.
+2. Creará y configurará la base de datos `negociodb` con sus credenciales.
+3. Esperará (gracias al `healthcheck`) a que MySQL esté listo antes de iniciar Spring Boot.
+4. Levantará la API REST de Spring Boot.
+5. Levantará la interfaz de Angular.
+
+> 💡 **Primera ejecución:** Docker descargará las imágenes desde Docker Hub. Dependiendo de tu conexión esto puede tomar un par de minutos. Las siguientes veces, el arranque es casi inmediato.
 
 ---
 
-### Paso 3 — Verificar que todo está listo
+### Paso 4 — Verificar que todo está en marcha
 
-La aplicación está lista cuando veas estas líneas en la terminal:
+La aplicación está lista cuando los logs de la terminal se estabilicen. Busca estas líneas como confirmación de Spring Boot:
 
 ```
-INFO 1 --- [main] o.s.b.w.a.WelcomePageHandlerMapping : Adding welcome page: class path resource [static/index.html]
-INFO 1 --- [main] o.s.b.w.a.TomcatWebServer           : Tomcat started on port 8080 (http) with context path '/'
-INFO 1 --- [main] c.a.g.GestionNegocioApplication     : Started GestionNegocioApplication in X.XXX seconds
+INFO 1 --- [main] o.s.b.w.e.tomcat.TomcatWebServer : Tomcat started on port 8080
+INFO 1 --- [main] c.a.g.GestionNegocioApplication  : Started GestionNegocioApplication in X.XXX seconds
 ```
 
 ---
 
-### Paso 4 — Abrir la aplicación
+### Paso 5 — Abrir la aplicación en el navegador
 
-Minimiza la terminal (no la cierres) y abre tu navegador en:
+Minimiza la terminal **(no la cierres)** y abre tu navegador:
 
-**👉 [http://localhost:8080](http://localhost:8080)**
+| Qué probar | URL |
+|---|---|
+| 🖥️ **Interfaz de usuario** (Angular) | [http://localhost:4200](http://localhost:4200) |
+| 🔌 **API REST** (Spring Boot) | [http://localhost:8080](http://localhost:8080) |
 
-Desde la interfaz puedes registrar, listar y actualizar productos. Las peticiones HTTP van al mismo puerto `8080` y los datos se guardan de forma persistente en MySQL.
+Desde el frontend puedes registrar, listar y editar productos. Cada operación realiza una petición HTTP a la API en el puerto `8080`, y los datos se persisten en la base de datos MySQL de forma automática.
 
 ---
 
 ## 🛑 Cómo Detener la Aplicación
 
-Nunca cierres la terminal de golpe. Sigue estos dos pasos para apagar todo de forma segura:
+Para apagar el entorno de forma segura y liberar los puertos:
 
-1. En la terminal donde corren los logs, presiona `Ctrl + C`.
-2. Luego ejecuta el siguiente comando para eliminar los contenedores temporales:
+1. En la terminal donde corren los logs, presiona **`Ctrl + C`**.
+2. Luego ejecuta:
 
 ```bash
 docker compose down
 ```
 
+> Si también quieres eliminar los datos almacenados en la base de datos (el volumen), ejecuta `docker compose down -v` en su lugar.
+
 ---
 
 ## 🗺️ Referencia de Puertos
 
-| Puerto | Servicio | Descripción |
-|--------|----------|-------------|
-| `8080` | App (Spring Boot + Angular) | Interfaz web y API REST |
-| `3306` | MySQL | Base de datos (acceso local, no expuesto en prod) |
+| Puerto | Servicio | URL |
+|--------|----------|-----|
+| `4200` | Frontend Angular | http://localhost:4200 |
+| `8080` | Backend Spring Boot | http://localhost:8080 |
+| `3306` | MySQL | Solo acceso local (no se expone en producción) |
 
 ---
 
-## 📦 Ventajas Técnicas
+## 📦 Decisiones Técnicas
 
-**Sin errores de CORS**
-Angular corre dentro del ecosistema estático de Spring Boot. Ambos comparten el mismo origen (`http://localhost:8080`), así que no existe cruce de dominios.
+**Imágenes separadas por servicio**
+Backend y frontend se publican como imágenes independientes en Docker Hub. Esto permite actualizar o escalar cada capa de forma independiente sin recompilar todo el proyecto.
 
-**Imagen ultra-ligera**
-La imagen final pesa ~398 MB, frente a los más de 1.8 GB que ocuparían ambos entornos de desarrollo por separado. Menos RAM, menos disco, más velocidad.
+**Persistencia de datos con volúmenes Docker**
+El volumen `mysql_data` garantiza que los datos de la base de datos sobreviven reinicios de contenedores. Solo se pierden si se ejecuta `docker compose down -v` explícitamente.
 
-**Arranque con un solo comando**
-No hay que compilar código ni instalar SDKs. Con `docker compose up` el entorno completo está en marcha.
+**Arranque ordenado con healthcheck**
+El `healthcheck` de MySQL evita la condición de carrera más común en stacks Docker: Spring Boot intentando conectar antes de que la base de datos esté lista.
 
 ---
 
-## 🛠️ Modo Desarrollo (Opcional)
+## 🛠️ Modo Desarrollo (Para Contribuidores)
 
-Si clonas el repositorio completo y quieres modificar el código fuente en tiempo real, **no uses** el `docker-compose.yml` de producción anterior. Desde la raíz del proyecto fuente, ejecuta:
+Si clonas el repositorio completo y quieres modificar el código fuente en tiempo real, desde la raíz del proyecto ejecuta:
 
 ```bash
 docker compose up --build
 ```
 
-Esto compilará el código local en caliente. Los servicios quedarán disponibles así:
-
-| Servicio | URL de desarrollo |
-|----------|-------------------|
-| Frontend Angular | `http://localhost:4200` |
-| Backend Spring Boot | `http://localhost:8080` |
+Esto compilará las imágenes localmente en lugar de descargarlas de Docker Hub. Los cambios en el código se reflejarán al reconstruir.
 
 ---
 
-## 📁 Estructura del Proyecto (Referencia)
+## 📁 Estructura del Repositorio
 
 ```
 gestion-app/
-├── backend/          # Proyecto Spring Boot (Maven)
-├── frontend/         # Proyecto Angular
-├── Dockerfile        # Multi-stage build (build Angular → empaqueta con Spring Boot)
-└── docker-compose.yml
+├── backend/            # Proyecto Spring Boot (Maven)
+├── frontend/           # Proyecto Angular
+├── docker-compose.yml  # Orquestación de los 3 servicios
+└── README.md
 ```
 
 ---
@@ -175,7 +216,8 @@ gestion-app/
 
 | Síntoma | Causa probable | Solución |
 |---------|---------------|----------|
-| `Port 8080 already in use` | Otro proceso usa el puerto | Cierra la aplicación que usa ese puerto o cambia `"8080:8080"` a `"9090:8080"` |
-| `Port 3306 already in use` | MySQL local corriendo | Detén tu MySQL local o cambia el puerto en el `docker-compose.yml` |
-| La app tarda en cargar | MySQL aún no está listo | Espera el healthcheck; Spring Boot reintentará la conexión automáticamente |
-| Cambios en el código no se reflejan | Usas la imagen de producción | Usa `docker compose up --build` en modo desarrollo |
+| `Port 8080 already in use` | Otro proceso usa el puerto | Cierra la app que ocupa ese puerto o cambia `"8080:8080"` a `"9090:8080"` en el `docker-compose.yml` |
+| `Port 4200 already in use` | Otra instancia de Angular corriendo | Detén el proceso o cambia el mapeo a `"4201:4200"` |
+| `Port 3306 already in use` | MySQL local instalado y corriendo | Detén el servicio MySQL local o cambia el mapeo a `"3307:3306"` |
+| Spring Boot no conecta a MySQL | MySQL aún inicializando | Es normal en la primera ejecución; espera el healthcheck. Spring Boot reintentará automáticamente |
+| Cambios en el código no se ven | Se usa la imagen de Docker Hub | Reconstruye con `docker compose up --build` |
