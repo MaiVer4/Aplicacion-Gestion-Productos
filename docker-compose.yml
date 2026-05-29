@@ -1,4 +1,7 @@
+version: '3.8'
+
 services:
+  # --- BASE DE DATOS MYSQL ---
   db-mysql:
     image: mysql:8.0
     container_name: mysql-container
@@ -16,8 +19,9 @@ services:
       timeout: 5s
       retries: 5
 
+  # --- BACKEND (SPRING BOOT) ---
   api-app:
-    build: ./backend # <--- Ajusta esta ruta a tu carpeta del backend
+    build: ./backend
     container_name: springboot-container
     ports:
       - "8080:8080"
@@ -29,14 +33,18 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
 
-  # --- NUEVO SERVICIO: FRONTEND ANGULAR ---
+  # --- FRONTEND (ANGULAR EN MODO DESARROLLO) ---
   angular-frontend:
-    build: ./frontend # <--- Ajusta esta ruta a tu carpeta de Angular
+    build: ./frontend
     container_name: angular-container
     ports:
       - "4200:4200"
+    # Forzamos a Angular a escuchar en todas las interfaces para que sea accesible desde fuera del contenedor
+    command: npx ng serve --host 0.0.0.0 --port 4200
     volumes:
       - ./frontend:/app
+      # Este volumen anónimo es CLAVE: Protege los node_modules del contenedor 
+      # para que no sean borrados ni pisados por los node_modules de tu máquina local
       - /app/node_modules
     depends_on:
       - api-app
